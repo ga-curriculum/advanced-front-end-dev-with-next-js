@@ -18,7 +18,11 @@
 
 ## Module Overview
 
-Learners use Next.js to create dynamic, high-performance front-end interfaces that interact with AI services through APIs. While the previous module focused on the backend "plumbing," this module focuses on the "glass"—the interface the user actually sees. We will explore how Next.js's architecture (specifically the App Router) simplifies connecting to AI models while managing the unique challenges of AI, such as long wait times (latency) and streaming text responses.
+Learners use Next.js to create dynamic, high-performance front-end interfaces that interact with AI services through APIs. 
+
+While the previous module focused on the backend "plumbing," this module focuses on the "glass"—the interface the user actually sees. 
+
+We will explore how Next.js's architecture (specifically the App Router) simplifies connecting to AI models while managing the unique challenges of AI, such as long wait times (latency) and streaming text responses.
 
 ---
 
@@ -49,13 +53,60 @@ By the end of this module, participants will be able to:
 
 ## 1. Why Next.js for AI Applications?
 
-In standard web development, data is usually instantaneous (database reads). In AI development, generating a response can take 2-10 seconds. Next.js provides a robust framework to handle this through **Server-Side Rendering (SSR)** and **Streaming**.
+Before diving into AI integration, it's crucial to understand why we use **Next.js** instead of standard React for modern web applications. Next.js is a React framework that provides building blocks to create fast, full-stack web applications. 
 
-### Key Advantages:
 
-* **Security:** You can keep API keys on the server side (Server Components) while still rendering UI.
-* **Performance:** The server can start sending parts of the HTML to the user before the AI has finished "thinking" (Streaming).
-* **SEO:** AI-generated content can be indexed by search engines if rendered on the server.
+
+For AI-powered apps, Next.js solves several major problems out-of-the-box:
+* **Secure API Routes:** You can write backend code directly in your Next.js project. This is where we safely hide our `OPENAI_API_KEY`.
+* **Server Components vs. Client Components:** Next.js allows you to render heavy components on the server (saving user bandwidth) and only use the client-side for interactive parts (like a chat input box).
+* **Simplified Data Fetching:** Built-in caching and dynamic rendering make handling slow AI API responses much easier.
+
+### Example: Server vs. Client in Next.js
+
+In an AI app, you want the page shell to load instantly on the server, while the interactive AI chat box runs on the client.
+
+**Server Component (Default in Next.js App Router):**
+```jsx
+// app/page.tsx
+// This runs on the server. It is fast and secure.
+import ChatInterface from './components/ChatInterface';
+
+export default function AIPage() {
+  return (
+    <main className="p-4">
+      <h1>AI Code Assistant</h1>
+      <p>Ask our AI any coding question below.</p>
+      {/* We import a Client Component for the interactive part */}
+      <ChatInterface /> 
+    </main>
+  );
+}
+
+```
+
+**Client Component:**
+
+```jsx
+// app/components/ChatInterface.tsx
+'use client'; // This directive tells Next.js this runs in the browser
+
+import { useState } from 'react';
+
+export default function ChatInterface() {
+  const [input, setInput] = useState('');
+  
+  // Interactive logic goes here...
+  return (
+    <input 
+      value={input} 
+      onChange={(e) => setInput(e.target.value)} 
+      placeholder="Type your prompt..." 
+    />
+  );
+}
+
+```
 
 ---
 
@@ -63,15 +114,10 @@ In standard web development, data is usually instantaneous (database reads). In 
 
 The Next.js App Router distinguishes between components that run on the server and those that run in the browser.
 
-### Server Components (The Brain)
-
-* **Role:** Fetch data, connect to databases, and hold API Keys.
-* **Usage in AI:** This is where you call your OpenAI/LLM helper function. It keeps your keys secure without needing a separate Express backend in some cases.
-
-### Client Components (The Face)
-
-* **Role:** Handle interactivity (clicks, typing, state).
-* **Usage in AI:** This is where you capture the user's prompt (form input) and display the "Typing..." animation.
+||Server Components<br>(The Brain)|Client Components<br>(The Face)|
+|---|---|---|
+|**Role**|Fetch data, connect to databases, and hold API Keys.|Handle interactivity (clicks, typing, state).|
+|**Usage in AI**|This is where you call your OpenAI/LLM helper function. It keeps your keys secure without needing a separate Express backend in some cases.|This is where you capture the user's prompt (form input) and display the "Typing..." animation.|
 
 ### Architecture Diagram
 
@@ -86,19 +132,48 @@ graph TD
 ```
 
 ---
+## 3. Core Architecture: Next.js and AI Integration
 
-## 3. Dynamic Data Fetching & Server Actions
+When integrating Next.js with an AI service like OpenAI, the architecture leverages Next.js as both the **Client** and the **Server** (Middleware).
+
+### The Data Flow
+
+1. **Client-Side Interaction:** The user interacts with a `'use client'` component (e.g., clicking "Generate").
+2. **Next.js API Route (Backend):** The client sends a request to a Next.js Route Handler (e.g., `app/api/generate-ai/route.ts`).
+3. **Secure AI Call:** The Route Handler injects the secure API key and forwards the prompt to the external AI Provider.
+4. **Dynamic Rendering:** The AI Provider returns the data to the Route Handler, which passes it back to the Client Component to dynamically update the screen.
+
+### Mermaid Diagram: Next.js AI Workflow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User
+    participant Client as Next.js Client Component
+    participant Route as Next.js API Route (Server)
+    participant AI as External AI API (e.g., OpenAI)
+
+    User->>Client: Enters prompt & clicks submit
+    Client->>Client: Set Loading State (UI updates)
+    Client->>Route: POST /api/generate-ai (JSON payload)
+    Note over Route: Appends OPENAI_API_KEY from .env
+    Route->>AI: POST to AI Inference Endpoint
+    Note over AI: Probabilistic Generation (Latency)
+    AI-->>Route: Returns AI Output (JSON/Stream)
+    Route-->>Client: Forwards Data to Client
+    Client->>Client: Clear Loading State
+    Client-->>User: Dynamically Renders Response
+
+```
+
+---
+
+## 4. Dynamic Data Fetching & Server Actions
 
 Next.js introduces **Server Actions**, which allow you to call a server-side function directly from a client-side button. This simplifies the "middleware" setup we did in previous modules.
 
-### Traditional API Route vs. Server Action
+### Server Action
 
-**Option A: The API Route (Traditional)**
-
-1. Create `app/api/generate/route.js`.
-2. Client fetches `/api/generate`.
-
-**Option B: Server Actions (Modern Next.js)**
 Define a function explicitly marked with `'use server'` that runs on the server but can be imported into your Client Component.
 
 ### Example: A Server Action for AI
@@ -124,7 +199,7 @@ export async function generateHaiku(topic) {
 
 ---
 
-## 4. Handling AI Latency: Streaming & Suspense
+## 5. Handling AI Latency: Streaming & Suspense
 
 Since AI is slow, we cannot leave the user staring at a blank screen. Next.js leverages React **Suspense** to show fallback UI.
 
@@ -167,41 +242,14 @@ export default function HaikuGenerator() {
 
 ---
 
-## 5. Lab: Building a Next.js AI Page
+## 6. Lab: Building a Next.js AI Page
 
-**Objective:** Build a Next.js page that fetches and displays AI-generated text or images.
+Refer: [**Building a Next.js AI Page**](https://git.generalassemb.ly/build-ai-powered-web-apps/Lab3_Building-a-Next.js-AI-Page)
 
-### Step 1: Setup
-
-1. Create a new Next.js app: `npx create-next-app@latest ai-front-end`.
-2. Install the OpenAI SDK: `npm install openai`.
-3. Create a `.env.local` file and add your `OPENAI_API_KEY`.
-
-### Step 2: Create the Server Action
-
-Create a file `app/actions.js`. Write a function that accepts a user prompt, calls OpenAI, and returns the text response.
-
-### Step 3: Create the UI
-
-In `app/page.js`:
-
-1. Build a simple HTML form with a text input and a submit button.
-2. Use the `'use client'` directive so you can manage `useState` for the input.
-3. Import your server action.
-
-### Step 4: Connect and Test
-
-1. Bind the form's `action` to your server function.
-2. Run the server: `npm run dev`.
-3. Type a prompt (e.g., "Explain Quantum Physics to a 5-year-old") and verify the AI text appears on the screen.
-
-### Step 5: Add Polish (Challenge)
-
-Add a "Loading..." state that disables the button while the AI is thinking.
 
 ---
 
-## 6. Wrap-Up and Reflection
+## 7. Wrap-Up and Reflection
 
 **Reflection Questions:**
 
@@ -210,7 +258,7 @@ Add a "Loading..." state that disables the button while the AI is thinking.
 
 ---
 
-## 7. Resources
+## 8. Resources
 
 * [Next.js Documentation](https://nextjs.org/docs)
 * [React Server Actions](https://react.dev/reference/react/use-server)
