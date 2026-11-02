@@ -244,7 +244,7 @@ export default function HaikuGenerator() {
 
 ## 6. Lab: Building a Next.js AI Page
 
-Refer: [**Building a Next.js AI Page**](https://git.generalassemb.ly/build-ai-powered-web-apps/Lab3_Building-a-Next.js-AI-Page)
+Refer: [**Building a Next.js AI Page**](https://github.com/ga-curriculum/lab3-building-a-next.js-ai-page)
 
 
 ---
